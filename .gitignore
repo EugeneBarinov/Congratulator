@@ -1,0 +1,27 @@
+# .NET
+bin/
+obj/
+*.user
+
+# База данных SQLite (создаётся приложением при первом запуске — не храним в репозитории)
+*.db
+*.db-shm
+*.db-wal
+
+# Загруженные пользователем фотографии (сами файлы не версионируем, папку — да)
+src/Congratulator.Api/wwwroot/uploads/*
+!src/Congratulator.Api/wwwroot/uploads/.gitkeep
+
+# Node / Vite
+node_modules/
+client/dist/
+client/.vite/
+
+# IDE
+.vs/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
