@@ -1,4 +1,4 @@
-# start.ps1 — запускает backend и frontend, ждёт готовности, открывает браузер
+# start.ps1 - launches backend + frontend and opens browser
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ApiPath = Join-Path $Root "src\Congratulator.Api"
@@ -6,142 +6,117 @@ $ClientPath = Join-Path $Root "client"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Поздравлятор — запуск" -ForegroundColor Cyan
+Write-Host "  Pozdravlyator - starting up" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# --- Проверка инструментов ---
+# --- Check tools ---
 
-Write-Host "Проверяю наличие dotnet..." -NoNewline
+Write-Host "Checking dotnet... " -NoNewline
 try {
-    $dotnetVersion = & dotnet --version 2>&1
-    Write-Host " OK ($dotnetVersion)" -ForegroundColor Green
+    $v = & dotnet --version 2>&1
+    Write-Host "OK ($v)" -ForegroundColor Green
 } catch {
-    Write-Host " НЕ НАЙДЕН" -ForegroundColor Red
-    Write-Host "Установи .NET 8 SDK: https://dotnet.microsoft.com/download/dotnet/8.0" -ForegroundColor Yellow
-    pause
-    exit 1
+    Write-Host "NOT FOUND" -ForegroundColor Red
+    Write-Host "Install .NET 8 SDK: https://dotnet.microsoft.com/download/dotnet/8.0"
+    pause; exit 1
 }
 
-Write-Host "Проверяю наличие node..." -NoNewline
+Write-Host "Checking node... " -NoNewline
 try {
-    $nodeVersion = & node --version 2>&1
-    Write-Host " OK ($nodeVersion)" -ForegroundColor Green
+    $v = & node --version 2>&1
+    Write-Host "OK ($v)" -ForegroundColor Green
 } catch {
-    Write-Host " НЕ НАЙДЕН" -ForegroundColor Red
-    Write-Host "Установи Node.js: https://nodejs.org" -ForegroundColor Yellow
-    pause
-    exit 1
+    Write-Host "NOT FOUND" -ForegroundColor Red
+    Write-Host "Install Node.js: https://nodejs.org"
+    pause; exit 1
 }
 
-# --- Убиваем старые процессы на нужных портах ---
+# --- Kill old processes on ports 5080 / 5173 ---
 
-Write-Host ""
-Write-Host "Освобождаю порты 5080 и 5173..." -NoNewline
-$ports = @(5080, 5173)
-foreach ($port in $ports) {
-    $pids = netstat -ano 2>$null | Select-String ":$port\s" | ForEach-Object {
-        ($_ -split '\s+')[-1]
-    } | Sort-Object -Unique
-    foreach ($p in $pids) {
+Write-Host "Freeing ports 5080 and 5173... " -NoNewline
+foreach ($port in @(5080, 5173)) {
+    $found = netstat -ano 2>$null |
+        Select-String ":$port\s" |
+        ForEach-Object { ($_ -split '\s+')[-1] } |
+        Sort-Object -Unique
+    foreach ($p in $found) {
         if ($p -match '^\d+$' -and $p -ne '0') {
             Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
         }
     }
 }
-Write-Host " готово" -ForegroundColor Green
+Write-Host "done" -ForegroundColor Green
 
-# --- npm install если нет node_modules ---
+# --- npm install if node_modules missing ---
 
 if (-not (Test-Path (Join-Path $ClientPath "node_modules"))) {
     Write-Host ""
-    Write-Host "Устанавливаю npm-пакеты (первый раз, займёт минуту)..." -ForegroundColor Yellow
+    Write-Host "Running npm install (first time only)..." -ForegroundColor Yellow
     Push-Location $ClientPath
     & npm install
     Pop-Location
 }
 
-# --- Запуск backend в отдельном окне ---
+# --- Start backend in a new window ---
 
 Write-Host ""
-Write-Host "Запускаю backend (ASP.NET Core)..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", `
-    "cd '$ApiPath'; Write-Host 'BACKEND' -ForegroundColor Cyan; dotnet run"
+Write-Host "Starting backend..." -ForegroundColor Cyan
+Start-Process powershell -ArgumentList @(
+    "-NoExit", "-Command",
+    "cd '$ApiPath'; Write-Host 'BACKEND - http://localhost:5080' -ForegroundColor Cyan; dotnet run"
+)
 
-# --- Ждём пока backend поднимется ---
+# --- Wait for backend ---
 
-Write-Host "Жду готовности backend на http://localhost:5080 ..." -NoNewline
-$maxWait = 30
-$waited = 0
-$backendReady = $false
-
-while ($waited -lt $maxWait) {
+Write-Host "Waiting for backend on http://localhost:5080 ." -NoNewline
+$ready = $false
+for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 2
-    $waited += 2
     Write-Host "." -NoNewline
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:5080/swagger/index.html" `
-            -TimeoutSec 2 -ErrorAction Stop
-        if ($response.StatusCode -eq 200) {
-            $backendReady = $true
-            break
-        }
+        $r = Invoke-WebRequest -Uri "http://localhost:5080/swagger/index.html" -TimeoutSec 2 -ErrorAction Stop
+        if ($r.StatusCode -eq 200) { $ready = $true; break }
     } catch { }
 }
+if ($ready) { Write-Host " ready!" -ForegroundColor Green }
+else { Write-Host " still starting, continuing anyway..." -ForegroundColor Yellow }
 
-if ($backendReady) {
-    Write-Host " готов!" -ForegroundColor Green
-} else {
-    Write-Host " не ответил за $maxWait сек." -ForegroundColor Yellow
-    Write-Host "Backend может ещё запускаться — продолжаю..." -ForegroundColor Yellow
-}
+# --- Start frontend in a new window ---
 
-# --- Запуск frontend в отдельном окне ---
+Write-Host "Starting frontend..." -ForegroundColor Cyan
+Start-Process powershell -ArgumentList @(
+    "-NoExit", "-Command",
+    "cd '$ClientPath'; Write-Host 'FRONTEND - http://localhost:5173' -ForegroundColor Magenta; npm run dev"
+)
 
-Write-Host "Запускаю frontend (Vite)..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", `
-    "cd '$ClientPath'; Write-Host 'FRONTEND' -ForegroundColor Magenta; npm run dev"
+# --- Wait for frontend ---
 
-# --- Ждём пока frontend поднимется ---
-
-Write-Host "Жду готовности frontend на http://localhost:5173 ..." -NoNewline
-$waited = 0
-$frontendReady = $false
-
-while ($waited -lt 20) {
+Write-Host "Waiting for frontend on http://localhost:5173 ." -NoNewline
+$ready = $false
+for ($i = 0; $i -lt 20; $i++) {
     Start-Sleep -Seconds 2
-    $waited += 2
     Write-Host "." -NoNewline
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:5173" `
-            -TimeoutSec 2 -ErrorAction Stop
-        if ($response.StatusCode -eq 200) {
-            $frontendReady = $true
-            break
-        }
+        $r = Invoke-WebRequest -Uri "http://localhost:5173" -TimeoutSec 2 -ErrorAction Stop
+        if ($r.StatusCode -eq 200) { $ready = $true; break }
     } catch { }
 }
+if ($ready) { Write-Host " ready!" -ForegroundColor Green }
+else { Write-Host " still starting..." -ForegroundColor Yellow }
 
-if ($frontendReady) {
-    Write-Host " готов!" -ForegroundColor Green
-} else {
-    Write-Host " ещё запускается..." -ForegroundColor Yellow
-}
-
-# --- Открываем браузер ---
+# --- Open browser ---
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Открываю браузер..." -ForegroundColor Cyan
-Write-Host "  Приложение: http://localhost:5173" -ForegroundColor White
-Write-Host "  Swagger API: http://localhost:5080/swagger" -ForegroundColor White
+Write-Host "  App:     http://localhost:5173" -ForegroundColor White
+Write-Host "  Swagger: http://localhost:5080/swagger" -ForegroundColor White
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 Start-Sleep -Seconds 2
 Start-Process "http://localhost:5173"
 
-Write-Host "Готово! Оба окна с backend и frontend работают отдельно." -ForegroundColor Green
-Write-Host "Чтобы остановить — закрой оба открывшихся окна PowerShell." -ForegroundColor Gray
+Write-Host "Done! Close the two PowerShell windows to stop the servers." -ForegroundColor Green
 Write-Host ""
 pause
