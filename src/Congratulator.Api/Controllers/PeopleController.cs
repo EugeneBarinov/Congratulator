@@ -1,8 +1,14 @@
 using Congratulator.Api.Abstractions;
 using Congratulator.Api.Dtos;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Congratulator.Api.Controllers;
+
+public class PhotoUploadRequest
+{
+    public IFormFile Photo { get; set; } = null!;
+}
 
 [ApiController]
 [Route("api/people")]
@@ -17,12 +23,10 @@ public class PeopleController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>Весь список ДР, отсортированный по близости даты.</summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<PersonDto>>> GetAll(CancellationToken ct)
         => Ok(await _personService.GetAllAsync(ct));
 
-    /// <summary>Сегодняшние и ближайшие ДР — то, что показывается на главной странице.</summary>
     [HttpGet("today-upcoming")]
     public async Task<ActionResult<IReadOnlyList<PersonDto>>> GetTodayAndUpcoming(CancellationToken ct)
         => Ok(await _personService.GetTodayAndUpcomingAsync(ct));
@@ -55,14 +59,14 @@ public class PeopleController : ControllerBase
         return deleted ? NoContent() : NotFound();
     }
 
-    /// <summary>Загрузка/замена фотографии (multipart/form-data, поле "photo").</summary>
     [HttpPost("{id:int}/photo")]
     [RequestSizeLimit(6 * 1024 * 1024)]
-    public async Task<ActionResult<PersonDto>> SetPhoto(int id, [FromForm] IFormFile photo, CancellationToken ct)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<PersonDto>> SetPhoto(int id, [FromForm] PhotoUploadRequest request, CancellationToken ct)
     {
         try
         {
-            var updated = await _personService.SetPhotoAsync(id, photo, ct);
+            var updated = await _personService.SetPhotoAsync(id, request.Photo, ct);
             return updated is null ? NotFound() : Ok(updated);
         }
         catch (ArgumentException ex)
