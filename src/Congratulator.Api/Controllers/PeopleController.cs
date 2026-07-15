@@ -1,32 +1,26 @@
 using Congratulator.Api.Abstractions;
 using Congratulator.Api.Dtos;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Congratulator.Api.Controllers;
-
-public class PhotoUploadRequest
-{
-    public IFormFile Photo { get; set; } = null!;
-}
 
 [ApiController]
 [Route("api/people")]
 public class PeopleController : ControllerBase
 {
     private readonly IPersonService _personService;
-    private readonly ILogger<PeopleController> _logger;
 
-    public PeopleController(IPersonService personService, ILogger<PeopleController> logger)
+    public PeopleController(IPersonService personService)
     {
         _personService = personService;
-        _logger = logger;
     }
 
+    /// <summary>Весь список ДР, отсортированный по близости даты.</summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<PersonDto>>> GetAll(CancellationToken ct)
         => Ok(await _personService.GetAllAsync(ct));
 
+    /// <summary>Сегодняшние и ближайшие ДР — главная страница.</summary>
     [HttpGet("today-upcoming")]
     public async Task<ActionResult<IReadOnlyList<PersonDto>>> GetTodayAndUpcoming(CancellationToken ct)
         => Ok(await _personService.GetTodayAndUpcomingAsync(ct));
@@ -59,6 +53,7 @@ public class PeopleController : ControllerBase
         return deleted ? NoContent() : NotFound();
     }
 
+    /// <summary>Загрузка/замена фотографии (multipart/form-data, поле "photo").</summary>
     [HttpPost("{id:int}/photo")]
     [RequestSizeLimit(6 * 1024 * 1024)]
     [Consumes("multipart/form-data")]

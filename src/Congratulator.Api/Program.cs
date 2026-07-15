@@ -84,6 +84,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", "Поздравлятор API v1"));
 }
 
+// Глобальный обработчик ошибок: при любом необработанном исключении возвращаем JSON,
+// а не HTML-страницу ошибки, которую SPA не умеет отображать.
+app.UseExceptionHandler(errApp => errApp.Run(async ctx =>
+{
+    ctx.Response.StatusCode = 500;
+    ctx.Response.ContentType = "application/json";
+    await ctx.Response.WriteAsJsonAsync(new { message = "Внутренняя ошибка сервера." });
+}));
+
 app.UseCors("Spa");
 app.UseStaticFiles(); // отдаёт wwwroot/uploads/* как /uploads/*
 app.UseAuthorization();
