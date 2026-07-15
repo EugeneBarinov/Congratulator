@@ -23,8 +23,27 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Поздравлятор API",
         Version = "v1",
-        Description = "API для ведения списка дней рождения друзей/коллег.",
+        Description = """
+            API для ведения списка дней рождений друзей, коллег и знакомых.
+
+            **Основные эндпоинты:**
+            - `GET /api/people` — полный список, отсортированный по дате ДР
+            - `GET /api/people/today-upcoming` — сегодняшние и ближайшие ДР (главная страница)
+            - `POST /api/people` — добавить запись
+            - `PUT /api/people/{id}` — редактировать запись
+            - `DELETE /api/people/{id}` — удалить запись
+            - `POST /api/people/{id}/photo` — загрузить фото (multipart/form-data)
+            - `POST /api/notifications/run-now` — запустить рассылку вручную
+            """,
     });
+
+    // Включаем XML-комментарии из кода
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
 });
 
 builder.Services.AddCors(options =>
